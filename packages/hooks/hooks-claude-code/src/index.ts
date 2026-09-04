@@ -293,6 +293,15 @@ export function apply(ctx: Context, config: Config): void {
     subagentChildren.delete(info.runId)
     detached.track(runPoint('SubagentStop', SUBAGENT_TYPE, subagentPayload('SubagentStop', info, child), { ...child ? { agent: child } : {}, signal: detached.signal }))
   })
+  // DSH has no dedicated session-end lifecycle event for the agent loop, so the
+  // natural teardown signal is `agent/disposed` (fires once when the agent's
+  // owning fiber is disposed, i.e. when the conversation/session ends). Route it
+  // to the Claude Code `SessionEnd` hook so ai-memory's scheduler sees a
+  // completed session and auto-improves it.
+  ctx.on('agent/disposed', ({ agent }) => {
+    detached.track(runPoint('SessionEnd', '', sessionEndPayload(agent), { agent, signal: detached.signal })
+      .catch((error: unknown) => { ctx.logger.warn(`hooks-claude-code: SessionEnd hook failed: ${String(error)}`) }))
+  })
 }
 
 /**
@@ -343,6 +352,9 @@ function postToolPayload(exec: ToolExecution, result: ToolExecutionResult): Reco
 }
 function stopPayload(agent: Agent): Record<string, unknown> {
   return { ...base(agent, 'Stop'), stop_hook_active: false }
+}
+function sessionEndPayload(agent: Agent): Record<string, unknown> {
+  return { ...base(agent, 'SessionEnd'), stop_hook_active: false }
 }
 /**
  * Build a SubagentStart/SubagentStop payload from the CC base (the child's
