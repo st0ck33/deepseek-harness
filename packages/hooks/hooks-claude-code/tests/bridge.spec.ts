@@ -446,20 +446,25 @@ describe('hooks-claude-code bridge — load resilience', () => {
     expect(unwrapped.inject).toEqual(['shell', 'sessionProjections'])
     expect(typeof unwrapped.apply).toBe('function')
   })
-  it("a SessionEnd hook fires when the agent is disposed (agent/disposed → SessionEnd)", async () => {
-    // The bridge routes `agent/disposed` (emitted once when an agent's owning fiber is
-    // torn down) to the detached SessionEnd hook. Create + announce an agent, then
-    // dispose the loop so the agent leaves the registry; the SessionEnd hook must run.
+  it('a SessionEnd hook fires when the agent is disposed (agent/disposed → SessionEnd)', async () => {
+    // The bridge routes `agent/disposed` (emitted once when an agent's owning fiber
+    // is torn down) to the detached SessionEnd hook. Create + announce an agent,
+    // then release it so it leaves the registry; the SessionEnd hook must run.
     const marker = join(tmpdir(), `dsh-hooks-session-end-${Date.now()}`)
     const dir = writeConfig({
-      SessionEnd: [{ hooks: [{ type: "command", command: `printf 'ran' > '${marker}'` }] }],
+      SessionEnd: [{ hooks: [{ type: 'command', command: `printf 'ran' > '${marker}'` }] }],
     })
-    const adapter = new MockAdapter([textResponse("ok")])
+    const adapter = new MockAdapter([textResponse('ok')])
     const { ctx } = await harnessWithFiber(dir, adapter)
-    await ctx.agentLoop.create(SessionId("session-end-test"), { provider: "mock", model: "mock" })
-    await ctx.agentLoop.dispose()
+    await ctx.agentLoop.create(SessionId('session-end-test'), { provider: 'mock', model: 'mock' })
+    // `dispose()` exists on the runtime service (disposes every live agent →
+    // `agent/disposed`) but isn't on the published type surface; a narrow cast keeps
+    // this compile-safe while still exercising the real teardown path.
+    await (ctx.agentLoop as unknown as { dispose(): Promise<void> }).dispose()
     await waitFor(() => existsSync(marker))
-    expect(readFileSync(marker, "utf8")).toBe("ran")
+    expect(readFileSync(marker, 'utf8')).toBe('ran')
   })
+
+
 
 })
