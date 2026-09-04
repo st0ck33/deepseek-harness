@@ -14,6 +14,7 @@ const CLAUDE_EVENTS = [
   'PreToolUse',
   'PostToolUse',
   'Stop',
+  'SessionEnd',
   'SubagentStart',
   'SubagentStop',
 ] as const
